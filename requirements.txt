@@ -1,3 +1,0 @@
-python==3.11.7
-streamlit==1.39.0
-numpy==1.26.4
