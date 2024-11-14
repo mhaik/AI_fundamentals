@@ -1,12 +1,11 @@
-
 import streamlit as st
 import numpy as np
 from matplotlib import pyplot as plt
 import math
 
-st.title("Task 2 - Single Neuron Classifier")
+st.title("Single Neuron Classifier")
 
-# from Task 1
+# Task 1
 def generator(num_modes, num_samples, mean_range, cov_range):
     samples = []
     for mode in range(num_modes):
@@ -17,6 +16,7 @@ def generator(num_modes, num_samples, mean_range, cov_range):
         mode_samples = np.column_stack((x_samples, y_samples))
         samples.append(mode_samples)
     return np.vstack(samples)
+
 
 
 class Neuron:
@@ -63,6 +63,7 @@ class Neuron:
         # s = weights * x + bias
         s = np.dot(self.weights, x) + self.bias
         result = self.activate(s)
+        # adding tresholds
         if self.activation == 'relu':
             return 1 if result > 0 else 0
         elif self.activation in ['tanh', 'sign', 'leaky_relu']:
@@ -87,8 +88,7 @@ class Neuron:
 st.sidebar.header("Model Parameters")
 samples = st.sidebar.slider("Number of samples per class", 50, 500, 200)
 modes = st.sidebar.slider("Number of modes", 1, 5, 1)
-activation_function = st.sidebar.selectbox("Activation Function", 
-                                           ['heaviside', 'logistic', 'tanh', 'sin', 'sign', 'relu', 'leaky_relu'])
+activation_function = st.sidebar.selectbox("Activation Function", ['heaviside', 'logistic', 'tanh', 'sin', 'sign', 'relu', 'leaky_relu'])
 learning_rate = st.sidebar.slider("Learning Rate", 0.01, 0.1, 0.02)
 epochs = st.sidebar.slider("Epochs", 1, 10, 3)
 
@@ -118,7 +118,6 @@ for i in range(XX.shape[0]):
     for j in range(XX.shape[1]):
         point = np.array([XX[i, j], YY[i, j]])
         Z[i, j] = neuron.predict(point)
-
 
 fig, ax = plt.subplots()
 ax.contourf(XX, YY, Z, levels=[0, 0.5, 1], alpha=0.5, cmap="RdBu")
