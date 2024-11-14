@@ -1,1 +1,129 @@
 
+import streamlit as st
+import numpy as np
+from matplotlib import pyplot as plt
+import math
+
+st.title("Task 2 - Single Neuron Classifier")
+
+# from Task 1
+def generator(num_modes, num_samples, mean_range, cov_range):
+    samples = []
+    for mode in range(num_modes):
+        mean_x, mean_y = np.random.uniform(mean_range[0], mean_range[1], 2)
+        sigma_x, sigma_y = np.random.uniform(cov_range[0], cov_range[1], 2)
+        x_samples = np.random.normal(mean_x, sigma_x, num_samples)
+        y_samples = np.random.normal(mean_y, sigma_y, num_samples)
+        mode_samples = np.column_stack((x_samples, y_samples))
+        samples.append(mode_samples)
+    return np.vstack(samples)
+
+
+class Neuron:
+    def __init__(self, input_dim, activation='heaviside', lr=0.01):
+        self.weights = np.random.randn(input_dim)
+        self.bias = np.random.randn()
+        self.activation = activation
+        self.lr = lr
+
+    # activation functions
+    def activate(self, s):
+        if self.activation == 'heaviside':
+            return 1 if s >= 0 else 0
+        elif self.activation == 'logistic':
+            return 1 / (1 + np.exp(-s))
+        elif self.activation == 'tanh':
+            return np.tanh(s)
+        elif self.activation == 'sin':
+            return np.sin(s)
+        elif self.activation == 'sign':
+            return 1 if s > 0 else -1 if s < 0 else 0
+        elif self.activation == 'relu':
+            return max(0, s)
+        elif self.activation == 'leaky_relu':
+            return s if s > 0 else 0.01 * s
+
+    # derivatives (of activation fucntion)
+    def derivative(self, s):
+        if self.activation == 'logistic':
+            sig = self.activate(s)
+            return sig * (1 - sig)
+        elif self.activation == 'tanh':
+            return (1 / math.cosh(s)) ** 2
+        elif self.activation == 'sin':
+            return math.cos(s)
+        elif self.activation == 'relu':
+            return 1 if s >= 0 else 0
+        elif self.activation == 'leaky_relu':
+            return 1 if s > 0 else 0.01
+        return 1  # heaviside, sign
+
+    # prediction function
+    def predict(self, x):
+        # s = weights * x + bias
+        s = np.dot(self.weights, x) + self.bias
+        result = self.activate(s)
+        if self.activation == 'relu':
+            return 1 if result > 0 else 0
+        elif self.activation in ['tanh', 'sign', 'leaky_relu']:
+            return 1 if result >= 0 else 0
+        elif self.activation == 'sin':
+            return 1 if math.sin(0.1 * s) >= 0 else 0 # super slow oscillation
+        return result 
+
+    # training
+    def train(self, x, d):
+        s = np.dot(self.weights, x) + self.bias
+        y = self.activate(s)
+        error = d - y
+        # weights += lr * (d - y) * derivative(s) * x
+        # bias += lr * (d - y) * derivative(s) * 1
+        weight_update = self.lr * error * self.derivative(s) * x
+        bias_update = self.lr * error * self.derivative(s)
+        self.weights += weight_update
+        self.bias += bias_update
+
+# sidebar
+st.sidebar.header("Model Parameters")
+samples = st.sidebar.slider("Number of samples per class", 50, 500, 200)
+modes = st.sidebar.slider("Number of modes", 1, 5, 1)
+activation_function = st.sidebar.selectbox("Activation Function", 
+                                           ['heaviside', 'logistic', 'tanh', 'sin', 'sign', 'relu', 'leaky_relu'])
+learning_rate = st.sidebar.slider("Learning Rate", 0.01, 0.1, 0.02)
+epochs = st.sidebar.slider("Epochs", 1, 10, 3)
+
+# generating samples
+mean_range = [-0.5, 0.5]
+cov_range = [0.01, 0.1]
+samples_class_0 = generator(modes, samples, mean_range, cov_range)
+samples_class_1 = generator(modes, samples, mean_range, cov_range)
+
+
+neuron = Neuron(input_dim=2, activation=activation_function, lr=learning_rate)
+
+# training
+for epoch in range(epochs):
+    for sample in samples_class_0:
+        neuron.train(sample, 0)  
+    for sample in samples_class_1:
+        neuron.train(sample, 1)  
+
+# decision boundary
+x_vals = np.arange(-1.5, 1.5, 0.05)
+y_vals = np.arange(-1.5, 1.5, 0.05)
+XX, YY = np.meshgrid(x_vals, y_vals)
+Z = np.zeros_like(XX)
+
+for i in range(XX.shape[0]):
+    for j in range(XX.shape[1]):
+        point = np.array([XX[i, j], YY[i, j]])
+        Z[i, j] = neuron.predict(point)
+
+
+fig, ax = plt.subplots()
+ax.contourf(XX, YY, Z, levels=[0, 0.5, 1], alpha=0.5, cmap="RdBu")
+ax.scatter(samples_class_0[:, 0], samples_class_0[:, 1], color='red', label="Class 0")
+ax.scatter(samples_class_1[:, 0], samples_class_1[:, 1], color='blue', label="Class 1")
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+st.pyplot(fig)
