@@ -11,3 +11,6 @@ A Streamlit-based web app that simulates a trainable artificial neuron for binar
 ## Customization Options:
 - Number of samples and modes (clusters) per class.
 - Learning rate, epochs, and activation function via an interactive sidebar.
+
+
+![image](https://github.com/user-attachments/assets/34981c7d-92f4-4be9-858f-765df1098997)
