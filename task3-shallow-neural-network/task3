@@ -1,1 +1,126 @@
 
+import streamlit as st
+import numpy as np
+from matplotlib import pyplot as plt
+
+
+st.title("Neural Network Classifier")
+
+# from Task 1
+def generator(num_modes, num_samples, mean_range, cov_range):
+    samples = []
+    for mode in range(num_modes):
+        mean_x, mean_y = np.random.uniform(mean_range[0], mean_range[1], 2)
+        sigma_x, sigma_y = np.random.uniform(cov_range[0], cov_range[1], 2)
+        x_samples = np.random.normal(mean_x, sigma_x, num_samples)
+        y_samples = np.random.normal(mean_y, sigma_y, num_samples)
+        mode_samples = np.column_stack((x_samples, y_samples))
+        samples.append(mode_samples)
+    return np.vstack(samples)
+
+
+class NeuralNetwork:
+    def __init__(self, input_dim, hidden_neurons, lr=0.01):
+        self.weights_input_hidden = np.random.randn(input_dim, hidden_neurons)  # input -> hidden
+        self.bias_hidden = np.random.randn(hidden_neurons)  # bias for hidden layer
+        self.weights_hidden_output = np.random.randn(hidden_neurons)  # hidden -> output
+        self.bias_output = np.random.randn()  # bias for output layer
+        self.lr = lr
+
+    def activate(self, s):
+        return 1 / (1 + np.exp(-s))  # logistic activation
+
+    def derivative(self, s):
+        sig = self.activate(s)
+        return sig * (1 - sig)  # derivative of logistic
+
+    def forward(self, x):
+        # hidden layer
+        self.hidden_input = np.dot(x, self.weights_input_hidden) + self.bias_hidden
+        self.hidden_output = self.activate(self.hidden_input)
+
+        # output layer
+        self.output_input = np.dot(self.hidden_output, self.weights_hidden_output) + self.bias_output
+        self.output = self.activate(self.output_input)  
+        return self.output
+
+    # backpropagation
+    def backward(self, x, target): 
+        output_error = target - self.output  # error at output
+        output_gradient = output_error * self.derivative(self.output_input)  # gradient for output
+
+        hidden_error = output_gradient * self.weights_hidden_output * self.derivative(self.hidden_input)  # backpropagate error to hidden layer
+        hidden_gradient = hidden_error  # gradient for hidden layer
+
+        # gradients
+        self.weights_hidden_output += self.lr * self.hidden_output * output_gradient  # Gradient for hidden -> output weights
+        self.bias_output += self.lr * output_gradient  # gradient for output bias
+        self.weights_input_hidden += self.lr * np.outer(x, hidden_gradient)  # gradient for input -> hidden weights
+        self.bias_hidden += self.lr * hidden_gradient  # gradient for hidden bias
+
+    def train(self, x_batch, target_batch):
+        for x, target in zip(x_batch, target_batch):
+            self.forward(x)
+            self.backward(x, target)
+
+    def predict(self, x):
+        return 1 if self.forward(x) >= 0.5 else 0  # binary prediction
+
+# sidebar
+st.sidebar.header("Model Parameters")
+samples = st.sidebar.slider("Number of samples per class", 100, 500, 200) # default 200
+modes = st.sidebar.slider("Number of modes", 1, 5, 2)  # default 2
+learning_rate = st.sidebar.slider("Learning Rate", 0.01, 0.1, 0.01)  # default 0.01
+epochs = st.sidebar.slider("Epochs", 1, 100, 61)  # default 61
+batch_size = st.sidebar.slider("Batch Size", 1, 100, 52)  # default 52
+hidden_neurons = st.sidebar.slider("Hidden Neurons", 2, 10, 5) # default 5
+
+# generating samples
+mean_range = [-0.5, 0.5]
+cov_range = [0.01, 0.1]
+samples_class_0 = generator(modes, samples, mean_range, cov_range)
+samples_class_1 = generator(modes, samples, mean_range, cov_range)
+
+
+input_dim = 2  # 2D points
+nn = NeuralNetwork(input_dim=input_dim, hidden_neurons=hidden_neurons, lr=learning_rate)
+
+
+# training
+for epoch in range(epochs):
+    # shuffle the data
+    combined_samples = np.vstack((samples_class_0, samples_class_1))
+    np.random.shuffle(combined_samples)
+    
+    # generate target labels (0 for class 0, 1 for class 1)
+    targets = np.array([0] * len(samples_class_0) + [1] * len(samples_class_1))
+    np.random.shuffle(targets)  # shuffle targets to match the samples
+    
+    # training in batches
+    for i in range(0, len(combined_samples), batch_size):
+        x_batch = combined_samples[i:i+batch_size]
+        d_batch = targets[i:i+batch_size]
+        nn.train(x_batch, d_batch)
+
+
+
+# decision boundary
+x_vals = np.arange(-1.5, 1.5, 0.05)
+y_vals = np.arange(-1.5, 1.5, 0.05)
+XX, YY = np.meshgrid(x_vals, y_vals)
+Z = np.zeros_like(XX)
+
+for i in range(XX.shape[0]):
+    for j in range(XX.shape[1]):
+        point = np.array([XX[i, j], YY[i, j]])
+        Z[i, j] = nn.predict(point)
+
+
+fig, ax = plt.subplots()
+ax.contourf(XX, YY, Z, levels=[0, 0.5, 1], alpha=0.5, cmap="RdBu")
+ax.scatter(samples_class_0[:, 0], samples_class_0[:, 1], color='red', label="Class 0")
+ax.scatter(samples_class_1[:, 0], samples_class_1[:, 1], color='blue', label="Class 1")
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.legend()
+st.pyplot(fig)
