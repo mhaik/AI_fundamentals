@@ -4,71 +4,75 @@ from matplotlib import pyplot as plt
 
 st.title("Neural Network Classifier")
 
-
 # from Task 1
 def generator(num_modes, num_samples, mean_range, cov_range):
     samples = []
     for mode in range(num_modes):
         mean_x, mean_y = np.random.uniform(mean_range[0], mean_range[1], 2)
         sigma_x, sigma_y = np.random.uniform(cov_range[0], cov_range[1], 2)
-
         x_samples = np.random.normal(mean_x, sigma_x, num_samples)
         y_samples = np.random.normal(mean_y, sigma_y, num_samples)
-
         mode_samples = np.column_stack((x_samples, y_samples))
         samples.append(mode_samples)
-
-    return np.vstack(samples) # numpy array of shape (num_modes * num_samples, 2) containing all points.
-
+    return np.vstack(samples) 
 
 
 class NeuralNetwork:
-    def __init__(self, input_dim, hidden_neurons, output_neurons=2, lr=0.01):
-        
-        # Weight matrix for input -> hidden layer (input_dim x hidden_neurons)
-        self.weights_input_hidden = np.random.randn(input_dim, hidden_neurons)
-        
-        self.bias_hidden = np.random.randn(hidden_neurons) # 1d array of length output_neurons
+    def __init__(self, input_dim, neurons, output_neurons=2, lr=0.01):
 
-        # weight matrix for hidden -> output layer (hidden_neurons x output_neurons)
-        self.weights_hidden_output = np.random.randn(hidden_neurons, output_neurons)
+        self.weights_input = np.random.randn(input_dim, neurons)
+        self.bias_input = np.random.randn(neurons)
         
-        self.bias_output = np.random.randn(output_neurons) # 1d array of length output_neurons
+        self.weights_hidden = np.random.randn(neurons, neurons)
+        self.bias_hidden = np.random.randn(neurons)  
+        
+        self.weights_output = np.random.randn(neurons, output_neurons)
+        self.bias_output = np.random.randn(output_neurons)
 
         self.lr = lr
 
     def activate(self, s):
-        return 1 / (1 + np.exp(-s)) # logistic function
+        return 1 / (1 + np.exp(-s))  # logistic function
 
     def derivative(self, s):
         sig = self.activate(s)
-        return sig * (1 - sig) # logistic derivative
+        return sig * (1 - sig)  # logistic derivative
 
-    def forward(self, x): # x, input shape (2,)
-        # weighted sum + bias -> activation
-        
-        self.hidden_input = np.dot(x, self.weights_input_hidden) + self.bias_hidden  # (hidden_neurons,)
-        self.hidden_output = self.activate(self.hidden_input)  # (hidden_neurons,)
+    def forward(self, x): 
+        # Input -> Hidden
+        self.input = np.dot(x, self.weights_input) + self.bias_input
+        self.input_output = self.activate(self.input)
 
-        self.output_input = np.dot(self.hidden_output, self.weights_hidden_output) + self.bias_output  # (output_neurons,)
-        self.output = self.activate(self.output_input)  # (output_neurons,)
+        # Hidden layer -> output
+        self.hidden_input = np.dot(self.input_output, self.weights_hidden) + self.bias_hidden
+        self.hidden_output = self.activate(self.hidden_input)
+
+        # Output
+        self.output_input = np.dot(self.hidden_output, self.weights_output) + self.bias_output
+        self.output = self.activate(self.output_input)
         return self.output
 
     def backpropagation(self, x, target):
-        output_error = target - self.output  # (2,)
-        output_gradient = output_error * self.derivative(self.output_input)  # (2,)
+        output_error = target - self.output 
+        output_gradient = output_error * self.derivative(self.output_input) 
 
-        # backpropagate to hidden layer
-        hidden_error = np.dot(output_gradient, self.weights_hidden_output.T)  # (hidden_neurons,)
-        hidden_gradient = hidden_error * self.derivative(self.hidden_input)  # (hidden_neurons,)
+        # Backpropagate to hidden layer
+        hidden_error = np.dot(output_gradient, self.weights_output.T)
+        hidden_gradient = hidden_error * self.derivative(self.hidden_input) 
 
-        # hidden -> output updates
-        self.weights_hidden_output += self.lr * np.outer(self.hidden_output, output_gradient)  # (hidden_neurons, 2)
-        self.bias_output += self.lr * output_gradient  # (2,)
+        # Backpropagate to input
+        input_error = np.dot(hidden_gradient, self.weights_hidden.T) 
+        input_gradient = input_error * self.derivative(self.input) 
 
-        # input -> hidden updates
-        self.weights_input_hidden += self.lr * np.outer(x, hidden_gradient)  # (2, hidden_neurons)
-        self.bias_hidden += self.lr * hidden_gradient  # (hidden_neurons,)
+        # Update weights and biases
+        self.weights_output += self.lr * np.outer(self.hidden_output, output_gradient)
+        self.bias_output += self.lr * output_gradient  
+
+        self.weights_hidden += self.lr * np.outer(self.input_output, hidden_gradient) 
+        self.bias_hidden += self.lr * hidden_gradient
+
+        self.weights_input += self.lr * np.outer(x, input_gradient)
+        self.bias_input += self.lr * input_gradient
 
     def train(self, x_batch, target_batch):
         for x, target in zip(x_batch, target_batch):
@@ -79,48 +83,45 @@ class NeuralNetwork:
         output = self.forward(x)
         return np.argmax(output)
 
-
-# sidebar 
+# Sidebar
 samples = st.sidebar.slider("Number of samples per class", 100, 500, 200)
 modes = st.sidebar.slider("Number of modes", 1, 5, 2)
-learning_rate = st.sidebar.slider("Learning Rate", 0.01, 0.1, 0.01)
 epochs = st.sidebar.slider("Epochs", 1, 100, 60)
 batch_size = st.sidebar.slider("Batch Size", 1, 100, 50)
-hidden_neurons = st.sidebar.slider("Neurons amount", 2, 10, 5)
+neurons = st.sidebar.slider("Neurons amount", 2, 10, 5)
 
-
+# Data generation
 mean_range = [-0.5, 0.5]
 cov_range = [0.01, 0.1]
 samples_class_0 = generator(modes, samples, mean_range, cov_range)
 samples_class_1 = generator(modes, samples, mean_range, cov_range)
 
-
-# combine data and labels (one-hot encoding for targets)
+# One-hot encoding for targets
 combined_samples = np.vstack((samples_class_0, samples_class_1))
 targets = np.array([[1, 0]] * len(samples_class_0) + [[0, 1]] * len(samples_class_1))
 
 
 input_dim = 2
 output_neurons = 2
-nn = NeuralNetwork(input_dim=input_dim, hidden_neurons=hidden_neurons, output_neurons=output_neurons, lr=learning_rate)
+nn = NeuralNetwork(input_dim=input_dim, neurons=neurons, output_neurons=output_neurons, lr=0.01)
 
 
-# training
+# Training
 for epoch in range(epochs):
-    # shuffle data and targets
+
     indices = np.random.permutation(len(combined_samples))
     combined_samples = combined_samples[indices]
     targets = targets[indices]
 
-    # train in batches
+
     for i in range(0, len(combined_samples), batch_size):
         x_batch = combined_samples[i:i + batch_size]
         d_batch = targets[i:i + batch_size]
         nn.train(x_batch, d_batch)
 
-# decision boundary
-x_vals = np.arange(-1.5, 1.5, 0.05)
-y_vals = np.arange(-1.5, 1.5, 0.05)
+# Decision boundary visualization
+x_vals = np.linspace(-1.5, 1.5, 100)
+y_vals = np.linspace(-1.5, 1.5, 100)
 XX, YY = np.meshgrid(x_vals, y_vals)
 Z = np.zeros((XX.shape[0], XX.shape[1]))
 
