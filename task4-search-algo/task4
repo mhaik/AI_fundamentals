@@ -284,19 +284,18 @@ class HumanPlayer(Player):
 # ----------------------------------
 # DO NOT MODIFY CODE ABOVE THIS LINE
 # ----------------------------------
-
 import heapq
+from collections import deque
+
 
 class SearchBasedPlayer(Player):
     
-    
     def __init__(self):
-        super(SearchBasedPlayer, self).__init__()
+        super().__init__()
+        self.chosen_path = []
+        self.visited = set()
 
-
-    def bfs(self, snake: Snake, food: Food, obstacles: Set[Obstacle]):
-        from collections import deque
-
+    def bfs(self, snake, food, obstacles):
         start = snake.get_head_position()
         queue = deque([(start, [])])
         visited = set()
@@ -305,32 +304,34 @@ class SearchBasedPlayer(Player):
         obstacle_positions = {o.position for o in obstacles}
 
         while queue:
-            current_position, path = queue.popleft()
+            current_pos, path = queue.popleft()
 
-            if current_position in visited:
+            if current_pos in visited:
                 continue
 
-            visited.add(current_position)
-            self.visited.add(current_position)
+            visited.add(current_pos)
+            self.visited.add(current_pos)
 
-            if current_position == food.position:
+            if current_pos == food.position:
                 self.chosen_path = path
                 return
 
             for direction in Direction:
-                new_pos = Position(current_position.x + direction.value[0], current_position.y + direction.value[1])
+                new_x = current_pos.x + direction.value[0]
+                new_y = current_pos.y + direction.value[1]
+                new_pos = Position(new_x, new_y)
 
                 if (
-                    new_pos not in visited
-                    and new_pos not in obstacle_positions
-                    and new_pos not in snake.positions
-                    and not new_pos.check_bounds(GRID_WIDTH, GRID_HEIGHT)
+                    not new_pos.check_bounds(GRID_WIDTH, GRID_HEIGHT)
+                    and new_pos not in visited                       
+                    and new_pos not in obstacle_positions            
+                    and new_pos not in snake.positions               
                 ):
                     queue.append((new_pos, path + [direction]))
 
         self.chosen_path = []
 
-    def dfs(self, snake: Snake, food: Food, obstacles: Set[Obstacle]):
+    def dfs(self, snake, food, obstacles):
         stack = [(snake.get_head_position(), [])]
         visited = set()
         self.visited.clear()
@@ -338,43 +339,45 @@ class SearchBasedPlayer(Player):
         obstacle_positions = {o.position for o in obstacles}
 
         while stack:
-            current_position, path = stack.pop()
+            current_pos, path = stack.pop()
 
-            if current_position in visited:
+            if current_pos in visited:
                 continue
 
-            visited.add(current_position)
-            self.visited.add(current_position)
+            visited.add(current_pos)
+            self.visited.add(current_pos)
 
-            if current_position == food.position:
+            if current_pos == food.position:
                 self.chosen_path = path
                 return
 
             for direction in Direction:
-                new_position = Position(current_position.x + direction.value[0], current_position.y + direction.value[1])
+                new_x = current_pos.x + direction.value[0]
+                new_y = current_pos.y + direction.value[1]
+                new_pos = Position(new_x, new_y)
 
-                if (new_position not in visited
-                    and new_position not in obstacle_positions
-                    and new_position not in snake.positions
-                    and not new_position.check_bounds(GRID_WIDTH, GRID_HEIGHT)):
-                    stack.append((new_position, path + [direction]))
+                if (
+                    not new_pos.check_bounds(GRID_WIDTH, GRID_HEIGHT)  
+                    and new_pos not in visited                        
+                    and new_pos not in obstacle_positions             
+                    and new_pos not in snake.positions                
+                ):
+                    stack.append((new_pos, path + [direction]))
 
         self.chosen_path = []
-        
-    def dijkstra(self, snake: Snake, food: Food, obstacles: Set[Obstacle]):
-        
+
+    def dijkstra(self, snake, food, obstacles):
         start = snake.get_head_position()
         food_pos = food.position
+
+        pq = [(0, (start.x, start.y), [])]
+        visited = set()
+        self.visited.clear()
+
         obstacle_positions = {o.position for o in obstacles}
 
-        priority_queue = []
-        heapq.heappush(priority_queue, (0, (start.x, start.y), []))
-
-        visited = set()
-
-        while priority_queue:
-            
-            cost, current_pos, path = heapq.heappop(priority_queue)
+        while pq:
+            cost, current_pos, path = heapq.heappop(pq)
             current_pos = Position(current_pos[0], current_pos[1])
 
             if current_pos == food_pos:
@@ -383,84 +386,27 @@ class SearchBasedPlayer(Player):
 
             if current_pos in visited:
                 continue
+            
             visited.add(current_pos)
-
-            for direction in Direction:
-                new_pos = Position(current_pos.x + direction.value[0], current_pos.y + direction.value[1])
-
-                if (not new_pos.check_bounds(GRID_WIDTH, GRID_HEIGHT)
-                    and new_pos not in visited
-                    and new_pos not in obstacle_positions
-                    and new_pos not in snake.positions):
-                    heapq.heappush(priority_queue, (cost + 1, (new_pos.x, new_pos.y), path + [direction]))
-
-        self.chosen_path = []
-        
-
-    def heuristic(self, a: Position, b: Position) -> float:
-        return abs(a.x - b.x) + abs(a.y - b.y)
-
-    def a_star(self, snake: Snake, food: Food, obstacles: Set[Obstacle]):
-        start = snake.get_head_position()
-        food_pos = food.position
-        obstacle_positions = {o.position for o in obstacles}
-        
-        open_set = []
-        heapq.heappush(open_set, (0, 0, (start.x, start.y), []))
-
-        came_from = {}
-        g_score = {(start.x, start.y): 0}
-
-        closed_set = set()
-        self.visited.clear()
-
-        while open_set:
-
-            current_f, current_g, current_pos, path = heapq.heappop(open_set)
-            current_pos = Position(current_pos[0], current_pos[1])
-
-            if current_pos == food_pos:
-                self.chosen_path = path
-                return
-
-            closed_set.add((current_pos.x, current_pos.y))
             self.visited.add(current_pos)
 
             for direction in Direction:
-                new_pos = Position(current_pos.x + direction.value[0], 
-                                   current_pos.y + direction.value[1])
+                new_x = current_pos.x + direction.value[0]
+                new_y = current_pos.y + direction.value[1]
+                new_pos = Position(new_x, new_y)
 
-                if (new_pos.check_bounds(GRID_WIDTH, GRID_HEIGHT) or 
-                    new_pos in obstacle_positions or 
-                    new_pos in snake.positions or 
-                    (new_pos.x, new_pos.y) in closed_set):
-                    continue
-
-                # cost from start
-                tentative_g_score = current_g + 1
-
-                # is this better
-                if ((new_pos.x, new_pos.y) not in [x[2] for x in open_set] or 
-                    tentative_g_score < g_score.get((new_pos.x, new_pos.y), float('inf'))):
-                    
-                    g_score[(new_pos.x, new_pos.y)] = tentative_g_score
-                    
-                    # g_score + heuristic
-                    f_score = tentative_g_score + self.heuristic(new_pos, food_pos)
-                    
-                    # add to open set
-                    heapq.heappush(open_set, (
-                        f_score, 
-                        tentative_g_score, 
-                        (new_pos.x, new_pos.y), 
-                        path + [direction]
-                    ))
+                if (
+                    not new_pos.check_bounds(GRID_WIDTH, GRID_HEIGHT) 
+                    and new_pos not in visited                        
+                    and new_pos not in obstacle_positions             
+                    and new_pos not in snake.positions                
+                ):
+                    heapq.heappush(pq, (cost + 1, (new_x, new_y), path + [direction]))
 
         self.chosen_path = []
 
-  
-    def search_path(self, snake: Snake, food: Food, obstacles: Set[Obstacle]):
-        self.bfs(snake, food, obstacles)
+    def search_path(self, snake, food, obstacles):
+        self.dijkstra(snake, food, obstacles)
 
 
 if __name__ == "__main__":
